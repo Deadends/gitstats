@@ -1,4 +1,12 @@
 export default async function handler(req, res) {
+    // Enable CORS
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end()
+    }
+    
     const { username } = req.query
     
     if (!username) {
@@ -7,10 +15,15 @@ export default async function handler(req, res) {
     
     const GITHUB_TOKEN = process.env.VITE_GITHUB_TOKEN
     
+    if (!GITHUB_TOKEN) {
+        return res.status(500).json({ error: 'GitHub token not configured' })
+    }
+    
     const fetchWithAuth = (url) => {
         return fetch(url, {
             headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'User-Agent': 'GitStats-App'
             }
         })
     }
@@ -19,7 +32,8 @@ export default async function handler(req, res) {
         const reposResponse = await fetchWithAuth(`https://api.github.com/users/${username}/repos?per_page=100`)
         
         if (!reposResponse.ok) {
-            throw new Error(`Failed to fetch repos: ${reposResponse.statusText}`)
+            const error = await reposResponse.text()
+            throw new Error(`Failed to fetch repos: ${reposResponse.statusText} - ${error}`)
         }
         
         const repos = await reposResponse.json()
@@ -64,6 +78,7 @@ export default async function handler(req, res) {
             totalFiles 
         })
     } catch (error) {
+        console.error('Stats API Error:', error)
         res.status(500).json({ error: error.message })
     }
 }
